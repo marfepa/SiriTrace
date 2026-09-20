@@ -2,25 +2,38 @@ import Foundation
 
 // MARK: - Siri Event Log Entry
 
-/// A single recorded event in the SiriTrace history timeline.
+/// A single recorded event in the SiriTrace history and audit timeline.
+/// Contains both user-facing summarized state and raw system telemetry.
 struct SiriEventLog: Identifiable, Sendable {
     let id: UUID
     let timestamp: Date
     let state: SiriProcessingState
     let querySnippet: String
     let responseTimeMs: Int?
+    let subsystem: String
+    let rawMessage: String
+    let networkDestination: String
+    let aneActive: Bool
 
     init(
         timestamp: Date = .now,
         state: SiriProcessingState,
         querySnippet: String,
-        responseTimeMs: Int? = nil
+        responseTimeMs: Int? = nil,
+        subsystem: String = "com.apple.siri",
+        rawMessage: String = "",
+        networkDestination: String = "Ninguna",
+        aneActive: Bool = false
     ) {
         self.id = UUID()
         self.timestamp = timestamp
         self.state = state
         self.querySnippet = querySnippet
         self.responseTimeMs = responseTimeMs
+        self.subsystem = subsystem
+        self.rawMessage = rawMessage
+        self.networkDestination = networkDestination
+        self.aneActive = aneActive
     }
 }
 
@@ -51,6 +64,15 @@ enum NetworkDestination: Sendable {
     case thirdParty
     /// Sockets detected but unable to determine destination (SIP, permissions).
     case unknown
+
+    var description: String {
+        switch self {
+        case .none:       return "Sin conexiones activas"
+        case .appleCloud: return "Apple Cloud (17.0.0.0/8)"
+        case .thirdParty: return "Servidor externo / terceros"
+        case .unknown:    return "Socket activo (destino no resuelto)"
+        }
+    }
 }
 
 // MARK: - Human-Readable Time

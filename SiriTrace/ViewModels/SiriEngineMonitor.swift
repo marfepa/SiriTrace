@@ -8,11 +8,7 @@ import Observation
 /// `NetworkProcessWatcher` and `NeuralEngineMonitor` into a single
 /// observable processing state for the UI layer.
 ///
-/// v0.2 changes:
-/// - **Idle timeout**: automatically returns to idle after N seconds of no new events.
-/// - **Subsystem-first classification**: log subsystem is the primary signal; network confirms.
-/// - **No stale state**: PassthroughSubject + timeout prevent state from getting "stuck".
-/// - **Clean query display**: filters out ObjC selectors and internal messages.
+/// Supports full audit telemetry recording and reliable CSV export.
 @MainActor
 @Observable
 final class SiriEngineMonitor {
@@ -32,6 +28,10 @@ final class SiriEngineMonitor {
     /// Seconds of inactivity before returning to idle. Configurable from Settings.
     var idleTimeoutSeconds: TimeInterval = 15.0
 
+    // MARK: Export Notification
+
+    var lastExportNotification: String? = nil
+
     // MARK: Private
 
     @ObservationIgnored private let logWatcher = LogStreamWatcher()
@@ -49,7 +49,7 @@ final class SiriEngineMonitor {
     /// Task for the idle timeout.
     @ObservationIgnored private var idleTask: Task<Void, Never>?
 
-    private let maxHistoryItems = 100
+    private let maxHistoryItems = 500
 
     // MARK: Init
 
@@ -62,7 +62,6 @@ final class SiriEngineMonitor {
 
     private func setupSubscriptions() {
         // ── Log events (primary signal) ──
-        // PassthroughSubject: only fires on new events, no stale retention.
         logWatcher.eventPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] logEvent in
@@ -117,7 +116,7 @@ final class SiriEngineMonitor {
         // ── Evaluate state using log (primary) + network (secondary) ──
         evaluateState(logEvent: event)
 
-        // Record history
+        // Record history with full technical telemetry
         recordHistory(event: event)
 
         // Reset idle timer — state will return to idle after timeout
@@ -179,14 +178,17 @@ final class SiriEngineMonitor {
             timestamp: event.timestamp,
             state: currentStatus,
             querySnippet: displayableQuery(from: event),
-            responseTimeMs: lastResponseTimeMs
+            responseTimeMs: lastResponseTimeMs,
+            subsystem: event.subsystem,
+            rawMessage: event.rawMessage,
+            networkDestination: lastNetworkStatus.description,
+            aneActive: lastANEActive
         )
 
-        // Avoid duplicate consecutive entries with the same state and query
+        // Avoid duplicate consecutive entries with identical raw message within 1s
         if let last = history.first,
-           last.state == entry.state,
-           last.querySnippet == entry.querySnippet,
-           abs(last.timestamp.timeIntervalSince(entry.timestamp)) < 2.0 {
+           last.rawMessage == entry.rawMessage,
+           abs(last.timestamp.timeIntervalSince(entry.timestamp)) < 1.0 {
             return
         }
 
@@ -213,10 +215,35 @@ final class SiriEngineMonitor {
 
     func clearHistory() {
         history.removeAll()
+        lastExportNotification = nil
     }
 
     func toggleHUD() {
         isHUDVisible.toggle()
+    }
+
+    /// Exports directly to Downloads and reveals in Finder
+    func exportToDownloads() {
+        if let url = LogExporter.exportToDownloads(entries: history) {
+            lastExportNotification = "Guardado en Descargas: \(url.lastPathComponent)"
+        } else {
+            lastExportNotification = "Error al exportar archivo"
+        }
+    }
+
+    /// Prompts Save Panel to save at custom location
+    func exportViaSavePanel() {
+        LogExporter.presentSavePanel(entries: history) { [weak self] url in
+            Task { @MainActor [weak self] in
+                if let url {
+                    self?.lastExportNotification = "Guardado: \(url.lastPathComponent)"
+                }
+            }
+        }
+    }
+
+    func clearExportNotification() {
+        lastExportNotification = nil
     }
 
     /// Returns history entries within the last N minutes.

@@ -80,10 +80,26 @@ struct SettingsView: View {
             // Data settings
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
+                    if let note = monitor.lastExportNotification {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(note)
+                                .font(.caption2)
+                                .lineLimit(1)
+                        }
+                    }
+
                     Button {
-                        LogExporter.presentSavePanel(entries: monitor.history)
+                        monitor.exportToDownloads()
                     } label: {
-                        Label("Exportar historial como CSV", systemImage: "square.and.arrow.up")
+                        Label("Exportar a Descargas y abrir Finder", systemImage: "arrow.down.circle.fill")
+                    }
+
+                    Button {
+                        monitor.exportViaSavePanel()
+                    } label: {
+                        Label("Elegir ubicación para guardar (CSV)...", systemImage: "folder.fill")
                     }
 
                     Button(role: .destructive) {
@@ -94,7 +110,7 @@ struct SettingsView: View {
                 }
                 .padding(4)
             } label: {
-                Label("Datos", systemImage: "externaldrive.fill")
+                Label("Auditoría y datos", systemImage: "externaldrive.fill")
             }
 
             // Privacy legend

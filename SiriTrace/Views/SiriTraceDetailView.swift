@@ -11,6 +11,9 @@ struct SiriTraceDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
+            if let note = monitor.lastExportNotification {
+                notificationBanner(note)
+            }
             Divider()
             privacyStatusSection
             Divider()
@@ -20,7 +23,7 @@ struct SiriTraceDetailView: View {
             Divider()
             footerSection
         }
-        .frame(width: 400)
+        .frame(width: 410)
         .sheet(isPresented: $showSettings) {
             SettingsView(monitor: monitor)
         }
@@ -44,6 +47,30 @@ struct SiriTraceDetailView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+    }
+
+    // MARK: - Notification Banner
+
+    private func notificationBanner(_ message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text(message)
+                .font(.caption2)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                monitor.clearExportNotification()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.green.opacity(0.12))
     }
 
     // MARK: - Privacy Status (main section)
@@ -80,7 +107,7 @@ struct SiriTraceDetailView: View {
                     .font(.caption.weight(.medium))
             }
 
-            // Technical details (collapsed by default feel — small text)
+            // Technical details (small tertiary text)
             Group {
                 Label(monitor.chipInfo, systemImage: "cpu.fill")
                 Label(monitor.networkInfo, systemImage: "network")
@@ -139,9 +166,15 @@ struct SiriTraceDetailView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Actividad reciente")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Actividad reciente")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(monitor.history.count) eventos")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
 
             let recent = monitor.recentHistory(minutes: 5)
 
@@ -185,20 +218,30 @@ struct SiriTraceDetailView: View {
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(entry.state.color)
         }
-        .help(entry.state.friendlyDescription)
+        .help("\(entry.state.friendlyDescription)\nSubsistema: \(entry.subsystem)")
     }
 
     // MARK: - Footer
 
     private var footerSection: some View {
-        HStack {
-            Button {
-                LogExporter.presentSavePanel(entries: monitor.history)
+        HStack(spacing: 12) {
+            Menu {
+                Button {
+                    monitor.exportToDownloads()
+                } label: {
+                    Label("Guardar en Descargas y abrir Finder", systemImage: "arrow.down.circle.fill")
+                }
+
+                Button {
+                    monitor.exportViaSavePanel()
+                } label: {
+                    Label("Elegir ubicación (Guardar como...)", systemImage: "folder.fill")
+                }
             } label: {
-                Label("Exportar", systemImage: "square.and.arrow.up")
+                Label("Exportar Log", systemImage: "square.and.arrow.up")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.blue)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
 
             Spacer()
 
