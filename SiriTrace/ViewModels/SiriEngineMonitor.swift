@@ -7,6 +7,12 @@ import Observation
 /// Central coordinator that fuses signals from `LogStreamWatcher`,
 /// `NetworkProcessWatcher` and `NeuralEngineMonitor` into a single
 /// observable processing state for the UI layer.
+///
+/// v0.2 changes:
+/// - **Idle timeout**: automatically returns to idle after N seconds of no new events.
+/// - **Subsystem-first classification**: log subsystem is the primary signal; network confirms.
+/// - **No stale state**: PassthroughSubject + timeout prevent state from getting "stuck".
+/// - **Clean query display**: filters out ObjC selectors and internal messages.
 @MainActor
 @Observable
 final class SiriEngineMonitor {
@@ -19,7 +25,12 @@ final class SiriEngineMonitor {
     var history: [SiriEventLog] = []
     var isHUDVisible: Bool = false
     var chipInfo: String = "Apple Neural Engine"
-    var networkInfo: String = "Sin conexión saliente (0 B/s)"
+    var networkInfo: String = "Sin conexión saliente"
+
+    // MARK: Configuration
+
+    /// Seconds of inactivity before returning to idle. Configurable from Settings.
+    var idleTimeoutSeconds: TimeInterval = 15.0
 
     // MARK: Private
 
@@ -27,7 +38,16 @@ final class SiriEngineMonitor {
     @ObservationIgnored private let networkWatcher = NetworkProcessWatcher()
     @ObservationIgnored private let aneMonitor = NeuralEngineMonitor()
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+
+    /// Most recent signals from each subsystem (read at evaluation time).
+    @ObservationIgnored private var lastNetworkStatus: NetworkDestination = .none
+    @ObservationIgnored private var lastANEActive: Bool = false
+
+    /// Timestamp of the current request start (for response time calculation).
     @ObservationIgnored private var requestStartDate: Date?
+
+    /// Task for the idle timeout.
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
 
     private let maxHistoryItems = 100
 
@@ -41,22 +61,36 @@ final class SiriEngineMonitor {
     // MARK: Subscriptions
 
     private func setupSubscriptions() {
-        Publishers.CombineLatest3(
-            logWatcher.eventPublisher,
-            networkWatcher.hasActiveTraffic,
-            aneMonitor.aneActivity
-        )
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] logEvent, hasNetworkTraffic, hasANEActivity in
-            MainActor.assumeIsolated {
-                self?.evaluateState(
-                    logEvent: logEvent,
-                    isCloudActive: hasNetworkTraffic,
-                    isANEActive: hasANEActivity
-                )
+        // ── Log events (primary signal) ──
+        // PassthroughSubject: only fires on new events, no stale retention.
+        logWatcher.eventPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] logEvent in
+                MainActor.assumeIsolated {
+                    self?.handleLogEvent(logEvent)
+                }
             }
-        }
-        .store(in: &cancellables)
+            .store(in: &cancellables)
+
+        // ── Network status (secondary / confirmatory signal) ──
+        networkWatcher.networkStatus
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                MainActor.assumeIsolated {
+                    self?.lastNetworkStatus = status
+                }
+            }
+            .store(in: &cancellables)
+
+        // ── ANE activity (supplementary signal) ──
+        aneMonitor.aneActivity
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isActive in
+                MainActor.assumeIsolated {
+                    self?.lastANEActive = isActive
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func startMonitoring() {
@@ -65,81 +99,114 @@ final class SiriEngineMonitor {
         aneMonitor.startMonitoring()
     }
 
-    // MARK: State Evaluation
+    // MARK: Event Handling
 
-    private func evaluateState(
-        logEvent: SiriLogEvent?,
-        isCloudActive: Bool,
-        isANEActive: Bool
-    ) {
-        // No active Siri event
-        guard let event = logEvent, event.isActive else {
-            if isANEActive {
-                currentStatus = .local
-                chipInfo = "Apple Neural Engine (activo)"
-                networkInfo = "Sin conexión saliente (0 B/s)"
-            } else {
-                currentStatus = .idle
-                chipInfo = "Apple Neural Engine"
-                networkInfo = "Sin conexión saliente (0 B/s)"
-            }
-            return
-        }
-
-        let previousStatus = currentStatus
-
-        // Determine new state
-        if event.isExternalService {
-            currentStatus = .externalAI
-            networkInfo = "Tráfico saliente: proveedor externo"
-        } else if isCloudActive || event.isPCC {
-            currentStatus = .privateCloud
-            networkInfo = "Tráfico saliente: Apple PCC (cifrado E2E)"
-        } else {
-            currentStatus = .local
-            chipInfo = "Apple Neural Engine (activo)"
-            networkInfo = "Ninguna conexión saliente (0 B/s)"
-        }
-
-        // Compute response time
+    private func handleLogEvent(_ event: SiriLogEvent) {
+        // Start response timer on first event of a session
         if requestStartDate == nil {
             requestStartDate = event.timestamp
         }
+
+        // Compute response time from request start
         let elapsed = Date().timeIntervalSince(requestStartDate ?? Date())
-        lastResponseTimeMs = Int(elapsed * 1000)
+        lastResponseTimeMs = max(1, Int(elapsed * 1000))
 
-        // Update prompt
-        lastPrompt = extractQuerySnippet(from: event.message)
+        // Update display prompt (prefer extracted query text over raw message)
+        lastPrompt = displayableQuery(from: event)
 
-        // Record history entry on state change or new activity
-        if previousStatus != currentStatus || currentStatus != .idle {
-            let entry = SiriEventLog(
-                timestamp: event.timestamp,
-                state: currentStatus,
-                querySnippet: lastPrompt,
-                responseTimeMs: lastResponseTimeMs
-            )
-            history.insert(entry, at: 0)
-            if history.count > maxHistoryItems {
-                history = Array(history.prefix(maxHistoryItems))
-            }
+        // ── Evaluate state using log (primary) + network (secondary) ──
+        evaluateState(logEvent: event)
+
+        // Record history
+        recordHistory(event: event)
+
+        // Reset idle timer — state will return to idle after timeout
+        resetIdleTimer()
+    }
+
+    // MARK: State Evaluation
+
+    private func evaluateState(logEvent event: SiriLogEvent) {
+        // Priority 1: Log says external OR network detected third-party connections
+        if event.isExternalService || lastNetworkStatus == .thirdParty {
+            currentStatus = .externalAI
+            chipInfo = "Apple Neural Engine"
+            networkInfo = "Tráfico saliente detectado: servicio externo"
+            return
         }
 
-        // Reset request timer when going idle
-        if currentStatus == .idle {
-            requestStartDate = nil
+        // Priority 2: Log says PCC OR network detected Apple cloud connections
+        if event.isPCC || lastNetworkStatus == .appleCloud {
+            currentStatus = .privateCloud
+            chipInfo = "Apple Neural Engine"
+            networkInfo = "Tráfico saliente: nube segura de Apple (cifrado E2E)"
+            return
+        }
+
+        // Priority 3: Local processing (default for Siri activity)
+        currentStatus = .local
+        chipInfo = lastANEActive
+            ? "Apple Neural Engine (activo)"
+            : "Apple Neural Engine"
+        networkInfo = "Sin conexión saliente — todo en tu Mac"
+    }
+
+    // MARK: Idle Timeout
+
+    private func resetIdleTimer() {
+        idleTask?.cancel()
+        let timeout = idleTimeoutSeconds
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(timeout))
+            guard !Task.isCancelled else { return }
+            self?.transitionToIdle()
         }
     }
 
-    // MARK: Helpers
+    private func transitionToIdle() {
+        currentStatus = .idle
+        requestStartDate = nil
+        lastResponseTimeMs = nil
+        chipInfo = "Apple Neural Engine"
+        networkInfo = "Sin conexión saliente"
+        lastPrompt = "Esperando orden…"
+    }
 
-    private func extractQuerySnippet(from message: String) -> String {
-        let maxLength = 80
-        let cleaned = message
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let snippet = String(cleaned.prefix(maxLength))
-        return snippet.isEmpty ? "Solicitud detectada" : snippet
+    // MARK: History
+
+    private func recordHistory(event: SiriLogEvent) {
+        let entry = SiriEventLog(
+            timestamp: event.timestamp,
+            state: currentStatus,
+            querySnippet: displayableQuery(from: event),
+            responseTimeMs: lastResponseTimeMs
+        )
+
+        // Avoid duplicate consecutive entries with the same state and query
+        if let last = history.first,
+           last.state == entry.state,
+           last.querySnippet == entry.querySnippet,
+           abs(last.timestamp.timeIntervalSince(entry.timestamp)) < 2.0 {
+            return
+        }
+
+        history.insert(entry, at: 0)
+        if history.count > maxHistoryItems {
+            history = Array(history.prefix(maxHistoryItems))
+        }
+    }
+
+    // MARK: Display Helpers
+
+    /// Returns a user-friendly query string, filtering out internal messages.
+    private func displayableQuery(from event: SiriLogEvent) -> String {
+        // Prefer extracted query text
+        if let query = event.queryText {
+            return query
+        }
+
+        // Fallback: return a generic message (never show raw ObjC selectors)
+        return "Procesando solicitud…"
     }
 
     // MARK: Public Actions
@@ -154,6 +221,7 @@ final class SiriEngineMonitor {
 
     /// Returns history entries within the last N minutes.
     func recentHistory(minutes: Int) -> [SiriEventLog] {
+        guard minutes > 0 else { return history }
         let cutoff = Date().addingTimeInterval(-TimeInterval(minutes * 60))
         return history.filter { $0.timestamp >= cutoff }
     }

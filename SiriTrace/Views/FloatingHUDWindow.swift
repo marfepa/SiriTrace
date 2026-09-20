@@ -5,12 +5,13 @@ import SwiftUI
 
 /// A borderless, floating panel styled as a "Dynamic Island" that shows
 /// the current Siri processing state at the top-center of the screen.
+/// Uses privacy-oriented friendly labels.
 @MainActor
 final class FloatingHUDWindow: NSPanel {
 
     init(monitor: SiriEngineMonitor) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 56),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 60),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -32,8 +33,8 @@ final class FloatingHUDWindow: NSPanel {
         // Position: top-center of main screen
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - 150
-            let y = screenFrame.maxY - 70
+            let x = screenFrame.midX - 160
+            let y = screenFrame.maxY - 74
             setFrameOrigin(NSPoint(x: x, y: y))
         }
     }
@@ -42,16 +43,17 @@ final class FloatingHUDWindow: NSPanel {
 // MARK: - HUD Content (SwiftUI)
 
 /// SwiftUI content rendered inside the floating HUD panel.
+/// Shows privacy badge and friendly status label.
 private struct HUDContentView: View {
     var monitor: SiriEngineMonitor
 
     var body: some View {
         HStack(spacing: 12) {
-            // Animated status icon
+            // Animated status indicator
             ZStack {
                 Circle()
                     .fill(monitor.currentStatus.color.opacity(0.25))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 34, height: 34)
 
                 Image(systemName: monitor.currentStatus.iconName)
                     .font(.body.weight(.semibold))
@@ -60,13 +62,20 @@ private struct HUDContentView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Siri — \(monitor.currentStatus.shortLabel)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                HStack(spacing: 6) {
+                    Text(monitor.currentStatus.friendlyLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    if !monitor.currentStatus.privacyBadge.isEmpty {
+                        Text(monitor.currentStatus.emoji)
+                            .font(.caption2)
+                    }
+                }
 
                 Text(monitor.lastPrompt)
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -75,7 +84,7 @@ private struct HUDContentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .frame(width: 300, height: 56)
+        .frame(width: 320, height: 60)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)

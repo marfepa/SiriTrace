@@ -7,7 +7,6 @@ struct SettingsView: View {
     var monitor: SiriEngineMonitor
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("pollingInterval") private var pollingInterval: Double = 1.5
     @AppStorage("showHUDOnStateChange") private var showHUDOnStateChange = true
     @AppStorage("historyRetentionMinutes") private var historyRetentionMinutes: Int = 30
 
@@ -25,17 +24,25 @@ struct SettingsView: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Intervalo de sondeo:")
+                        Text("Volver a reposo tras:")
+                            .help("Segundos de inactividad antes de que el estado vuelva a 'En espera'.")
                         Spacer()
-                        Slider(value: $pollingInterval, in: 0.5...5.0, step: 0.5)
-                            .frame(width: 160)
-                        Text("\(pollingInterval, specifier: "%.1f") s")
+                        Slider(
+                            value: Binding(
+                                get: { monitor.idleTimeoutSeconds },
+                                set: { monitor.idleTimeoutSeconds = $0 }
+                            ),
+                            in: 5...60,
+                            step: 5
+                        )
+                        .frame(width: 150)
+                        Text("\(Int(monitor.idleTimeoutSeconds)) s")
                             .monospacedDigit()
-                            .frame(width: 40, alignment: .trailing)
+                            .frame(width: 36, alignment: .trailing)
                     }
 
                     HStack {
-                        Text("Retención de historial:")
+                        Text("Conservar historial:")
                         Spacer()
                         Picker("", selection: $historyRetentionMinutes) {
                             Text("5 min").tag(5)
@@ -67,7 +74,7 @@ struct SettingsView: View {
                 }
                 .padding(4)
             } label: {
-                Label("HUD Flotante", systemImage: "macwindow.on.rectangle")
+                Label("Indicador flotante", systemImage: "macwindow.on.rectangle")
             }
 
             // Data settings
@@ -90,11 +97,23 @@ struct SettingsView: View {
                 Label("Datos", systemImage: "externaldrive.fill")
             }
 
+            // Privacy legend
+            GroupBox {
+                VStack(alignment: .leading, spacing: 6) {
+                    legendRow(emoji: "🟢", label: "Privado", desc: "Todo se procesa en tu Mac")
+                    legendRow(emoji: "🟡", label: "Nube Apple", desc: "Nube segura con cifrado E2E")
+                    legendRow(emoji: "🔴", label: "Externo", desc: "Servicio de terceros (ej. ChatGPT)")
+                }
+                .padding(4)
+            } label: {
+                Label("Significado de los colores", systemImage: "circle.lefthalf.filled")
+            }
+
             Spacer()
 
             // Close
             HStack {
-                Text("SiriTrace v0.1.0")
+                Text("SiriTrace v0.2.0")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -105,6 +124,20 @@ struct SettingsView: View {
             }
         }
         .padding()
-        .frame(width: 440, height: 420)
+        .frame(width: 460, height: 520)
+    }
+
+    private func legendRow(emoji: String, label: String, desc: String) -> some View {
+        HStack(spacing: 8) {
+            Text(emoji)
+                .font(.body)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                Text(desc)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
