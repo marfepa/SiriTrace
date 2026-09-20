@@ -5,10 +5,8 @@ import Observation
 // MARK: - Siri Engine Monitor (ViewModel)
 
 /// Central coordinator that fuses signals from `LogStreamWatcher`,
-/// `NetworkProcessWatcher` and `NeuralEngineMonitor` into a single
-/// observable processing state for the UI layer.
-///
-/// Supports full audit telemetry recording and reliable CSV export.
+/// `NetworkProcessWatcher`, `NeuralEngineMonitor`, and `SiriAppFocusWatcher`
+/// into a single observable state for the UI layer and Dynamic Island HUD.
 @MainActor
 @Observable
 final class SiriEngineMonitor {
@@ -20,6 +18,7 @@ final class SiriEngineMonitor {
     var lastResponseTimeMs: Int? = nil
     var history: [SiriEventLog] = []
     var isHUDVisible: Bool = false
+    var isSiriFrontmost: Bool = false
     var chipInfo: String = "Apple Neural Engine"
     var networkInfo: String = "Sin conexión saliente"
 
@@ -27,6 +26,9 @@ final class SiriEngineMonitor {
 
     /// Seconds of inactivity before returning to idle. Configurable from Settings.
     var idleTimeoutSeconds: TimeInterval = 15.0
+
+    /// Automatically display the Dynamic Island when Siri is active or in the foreground.
+    var autoShowDynamicIsland: Bool = true
 
     // MARK: Export Notification
 
@@ -37,6 +39,7 @@ final class SiriEngineMonitor {
     @ObservationIgnored private let logWatcher = LogStreamWatcher()
     @ObservationIgnored private let networkWatcher = NetworkProcessWatcher()
     @ObservationIgnored private let aneMonitor = NeuralEngineMonitor()
+    @ObservationIgnored private let focusWatcher = SiriAppFocusWatcher()
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     /// Most recent signals from each subsystem (read at evaluation time).
@@ -61,7 +64,7 @@ final class SiriEngineMonitor {
     // MARK: Subscriptions
 
     private func setupSubscriptions() {
-        // ── Log events (primary signal) ──
+        // ── 1. Log events (primary signal) ──
         logWatcher.eventPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] logEvent in
@@ -71,7 +74,7 @@ final class SiriEngineMonitor {
             }
             .store(in: &cancellables)
 
-        // ── Network status (secondary / confirmatory signal) ──
+        // ── 2. Network status (secondary / confirmatory signal) ──
         networkWatcher.networkStatus
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
@@ -81,12 +84,23 @@ final class SiriEngineMonitor {
             }
             .store(in: &cancellables)
 
-        // ── ANE activity (supplementary signal) ──
+        // ── 3. ANE activity (supplementary signal) ──
         aneMonitor.aneActivity
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isActive in
                 MainActor.assumeIsolated {
                     self?.lastANEActive = isActive
+                }
+            }
+            .store(in: &cancellables)
+
+        // ── 4. Siri App Focus (Dynamic Island auto-visibility) ──
+        focusWatcher.isSiriFrontmost
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isFrontmost in
+                MainActor.assumeIsolated {
+                    self?.isSiriFrontmost = isFrontmost
+                    self?.updateHUDVisibility()
                 }
             }
             .store(in: &cancellables)
@@ -96,6 +110,7 @@ final class SiriEngineMonitor {
         logWatcher.startMonitoring()
         networkWatcher.startMonitoring()
         aneMonitor.startMonitoring()
+        focusWatcher.startMonitoring()
     }
 
     // MARK: Event Handling
@@ -118,6 +133,9 @@ final class SiriEngineMonitor {
 
         // Record history with full technical telemetry
         recordHistory(event: event)
+
+        // Update Dynamic Island visibility
+        updateHUDVisibility()
 
         // Reset idle timer — state will return to idle after timeout
         resetIdleTimer()
@@ -154,6 +172,18 @@ final class SiriEngineMonitor {
         networkInfo = "Sin conexión saliente — todo en tu Mac"
     }
 
+    // MARK: Dynamic Island Visibility
+
+    func updateHUDVisibility() {
+        guard autoShowDynamicIsland else { return }
+
+        // Island appears if Siri app is in the foreground OR if request is actively processing
+        let shouldShow = isSiriFrontmost || currentStatus != .idle
+        if isHUDVisible != shouldShow {
+            isHUDVisible = shouldShow
+        }
+    }
+
     // MARK: Idle Timeout
 
     private func resetIdleTimer() {
@@ -173,6 +203,7 @@ final class SiriEngineMonitor {
         chipInfo = "Apple Neural Engine"
         networkInfo = "Sin conexión saliente"
         lastPrompt = "Esperando orden…"
+        updateHUDVisibility()
     }
 
     // MARK: History

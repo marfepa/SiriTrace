@@ -249,10 +249,10 @@ struct SiriTraceDetailView: View {
                 monitor.toggleHUD()
             } label: {
                 Label(
-                    monitor.isHUDVisible ? "Ocultar HUD" : "Mostrar HUD",
+                    monitor.isHUDVisible ? "Ocultar Isla" : "Mostrar Isla",
                     systemImage: monitor.isHUDVisible
-                        ? "rectangle.on.rectangle.slash"
-                        : "rectangle.on.rectangle"
+                        ? "macwindow.badge.plus"
+                        : "macwindow"
                 )
             }
             .buttonStyle(.plain)

@@ -60,21 +60,33 @@ struct SettingsView: View {
                 Label("Monitor", systemImage: "gauge.with.dots.needle.bottom.50percent")
             }
 
-            // HUD settings
+            // HUD / Dynamic Island settings
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Mostrar HUD automáticamente al cambiar estado",
-                           isOn: $showHUDOnStateChange)
+                    Toggle(
+                        "Desplegar Dynamic Island automáticamente con Siri",
+                        isOn: Binding(
+                            get: { monitor.autoShowDynamicIsland },
+                            set: {
+                                monitor.autoShowDynamicIsland = $0
+                                monitor.updateHUDVisibility()
+                            }
+                        )
+                    )
+                    .help("Muestra la Dynamic Island en el Notch cuando la ventana de Siri esté activa o procesando una solicitud.")
 
                     Button {
                         monitor.toggleHUD()
                     } label: {
-                        Label("Mostrar / Ocultar HUD ahora", systemImage: "rectangle.on.rectangle")
+                        Label(
+                            monitor.isHUDVisible ? "Ocultar Dynamic Island ahora" : "Mostrar Dynamic Island ahora",
+                            systemImage: "macwindow.on.rectangle"
+                        )
                     }
                 }
                 .padding(4)
             } label: {
-                Label("Indicador flotante", systemImage: "macwindow.on.rectangle")
+                Label("Dynamic Island (Notch de Mac)", systemImage: "macwindow.badge.plus")
             }
 
             // Data settings
