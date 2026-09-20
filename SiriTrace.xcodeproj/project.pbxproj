@@ -1,0 +1,415 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		019581C08D371BCB4F54E5AF /* SiriTraceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13BC314B19DA6FB2EF7C940 /* SiriTraceDetailView.swift */; };
+		4BE3C872B294B543FB75F791 /* SiriEngineMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86AD1CBDC1C93852363088D /* SiriEngineMonitor.swift */; };
+		5D28E2C2C5F20089BCF5DCF8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A68D66E6A2253648EE0F9E9 /* SettingsView.swift */; };
+		7734C411F4647D03E44D2B2A /* SiriEventLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEA43346E623BB2A2D4E40A /* SiriEventLog.swift */; };
+		8555C57417C7AC21716E989E /* SiriProcessingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E766A69FE2D8C9D6B3151E80 /* SiriProcessingState.swift */; };
+		9DFF9B7532DB769AEBAA295E /* LogExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31FDEEFBD83132083B6A0C02 /* LogExporter.swift */; };
+		AD305168E25705F905F15EFF /* FloatingHUDWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E126DA274C2ED6D14956A9C7 /* FloatingHUDWindow.swift */; };
+		BE885FBB3E0B2F3FD732BC4B /* LogStreamWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051962A49CFB2474928FEEEA /* LogStreamWatcher.swift */; };
+		C618F5867E3D289045FAF028 /* NetworkProcessWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79B21A957CB3C2B62C6AA4D /* NetworkProcessWatcher.swift */; };
+		E15228D1EA48F84480675CDE /* NeuralEngineMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F6D2F8404BEBDC8574FCE1 /* NeuralEngineMonitor.swift */; };
+		F72EC3ADF13AF296129795B1 /* SiriTraceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DB76A15A301CAAC84C90F0 /* SiriTraceApp.swift */; };
+		FDEF7177B0B8735822595DBA /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D644E2A8645948FF86C61E00 /* IOKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		051962A49CFB2474928FEEEA /* LogStreamWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStreamWatcher.swift; sourceTree = "<group>"; };
+		0E80594FB864E3DB1E5BDC74 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		15DB76A15A301CAAC84C90F0 /* SiriTraceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriTraceApp.swift; sourceTree = "<group>"; };
+		183D98A5E4513985B04F3154 /* SiriTrace.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SiriTrace.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2EEA43346E623BB2A2D4E40A /* SiriEventLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriEventLog.swift; sourceTree = "<group>"; };
+		31FDEEFBD83132083B6A0C02 /* LogExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogExporter.swift; sourceTree = "<group>"; };
+		4A68D66E6A2253648EE0F9E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A79B21A957CB3C2B62C6AA4D /* NetworkProcessWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProcessWatcher.swift; sourceTree = "<group>"; };
+		B1F6D2F8404BEBDC8574FCE1 /* NeuralEngineMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralEngineMonitor.swift; sourceTree = "<group>"; };
+		C13BC314B19DA6FB2EF7C940 /* SiriTraceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriTraceDetailView.swift; sourceTree = "<group>"; };
+		D644E2A8645948FF86C61E00 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		E126DA274C2ED6D14956A9C7 /* FloatingHUDWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingHUDWindow.swift; sourceTree = "<group>"; };
+		E766A69FE2D8C9D6B3151E80 /* SiriProcessingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriProcessingState.swift; sourceTree = "<group>"; };
+		ECDF366426C2A1BBBC4609C9 /* SiriTrace.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SiriTrace.entitlements; sourceTree = "<group>"; };
+		F86AD1CBDC1C93852363088D /* SiriEngineMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriEngineMonitor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5FBC9A78A245F9057550F43A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FDEF7177B0B8735822595DBA /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		248E91000EFAC501409E51FD /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				2EEA43346E623BB2A2D4E40A /* SiriEventLog.swift */,
+				E766A69FE2D8C9D6B3151E80 /* SiriProcessingState.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		303805B2D451B6E609117BC2 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				F86AD1CBDC1C93852363088D /* SiriEngineMonitor.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		40688BB83B38825680E17F3E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0E80594FB864E3DB1E5BDC74 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		43674CC4E4E3EEFB31B4F4A1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D644E2A8645948FF86C61E00 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9658D698693C459A7281B103 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				183D98A5E4513985B04F3154 /* SiriTrace.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BD9C03F43F4B931B4E3EF815 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				E126DA274C2ED6D14956A9C7 /* FloatingHUDWindow.swift */,
+				4A68D66E6A2253648EE0F9E9 /* SettingsView.swift */,
+				C13BC314B19DA6FB2EF7C940 /* SiriTraceDetailView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D416D7CFA6032C56D5CDEFA4 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				15DB76A15A301CAAC84C90F0 /* SiriTraceApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D933CBE428368363DA2F842B = {
+			isa = PBXGroup;
+			children = (
+				E49577650BC48427A8D8B150 /* SiriTrace */,
+				43674CC4E4E3EEFB31B4F4A1 /* Frameworks */,
+				9658D698693C459A7281B103 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E49577650BC48427A8D8B150 /* SiriTrace */ = {
+			isa = PBXGroup;
+			children = (
+				ECDF366426C2A1BBBC4609C9 /* SiriTrace.entitlements */,
+				D416D7CFA6032C56D5CDEFA4 /* App */,
+				248E91000EFAC501409E51FD /* Models */,
+				40688BB83B38825680E17F3E /* Resources */,
+				F159D8912BE9044676BBE095 /* Services */,
+				ECEB6DCCC4D1823E83CDA293 /* Utilities */,
+				303805B2D451B6E609117BC2 /* ViewModels */,
+				BD9C03F43F4B931B4E3EF815 /* Views */,
+			);
+			path = SiriTrace;
+			sourceTree = "<group>";
+		};
+		ECEB6DCCC4D1823E83CDA293 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				31FDEEFBD83132083B6A0C02 /* LogExporter.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		F159D8912BE9044676BBE095 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				051962A49CFB2474928FEEEA /* LogStreamWatcher.swift */,
+				A79B21A957CB3C2B62C6AA4D /* NetworkProcessWatcher.swift */,
+				B1F6D2F8404BEBDC8574FCE1 /* NeuralEngineMonitor.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3D5FA809F098D952CCBFD9A3 /* SiriTrace */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4E96D6645B509AE0CA1D8F2D /* Build configuration list for PBXNativeTarget "SiriTrace" */;
+			buildPhases = (
+				FB734EE8AA6666C9AE50B0E9 /* Sources */,
+				5FBC9A78A245F9057550F43A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SiriTrace;
+			packageProductDependencies = (
+			);
+			productName = SiriTrace;
+			productReference = 183D98A5E4513985B04F3154 /* SiriTrace.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D200677618E54AB4DA17AB8C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 26216E8C672D70C082EFA5E1 /* Build configuration list for PBXProject "SiriTrace" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D933CBE428368363DA2F842B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9658D698693C459A7281B103 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3D5FA809F098D952CCBFD9A3 /* SiriTrace */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		FB734EE8AA6666C9AE50B0E9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AD305168E25705F905F15EFF /* FloatingHUDWindow.swift in Sources */,
+				9DFF9B7532DB769AEBAA295E /* LogExporter.swift in Sources */,
+				BE885FBB3E0B2F3FD732BC4B /* LogStreamWatcher.swift in Sources */,
+				C618F5867E3D289045FAF028 /* NetworkProcessWatcher.swift in Sources */,
+				E15228D1EA48F84480675CDE /* NeuralEngineMonitor.swift in Sources */,
+				5D28E2C2C5F20089BCF5DCF8 /* SettingsView.swift in Sources */,
+				4BE3C872B294B543FB75F791 /* SiriEngineMonitor.swift in Sources */,
+				7734C411F4647D03E44D2B2A /* SiriEventLog.swift in Sources */,
+				8555C57417C7AC21716E989E /* SiriProcessingState.swift in Sources */,
+				F72EC3ADF13AF296129795B1 /* SiriTraceApp.swift in Sources */,
+				019581C08D371BCB4F54E5AF /* SiriTraceDetailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		11B8EFBB53E4F8CBA1F0A94F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SiriTrace/SiriTrace.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SiriTrace/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.siritrace.app;
+				PRODUCT_NAME = SiriTrace;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		8DE0DAFD1200E8F996E7A36A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SiriTrace/SiriTrace.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SiriTrace/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.siritrace.app;
+				PRODUCT_NAME = SiriTrace;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		BAAB62068634AC0900C56B76 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6;
+			};
+			name = Release;
+		};
+		D1A46CFB14ACC3B0946ED18B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		26216E8C672D70C082EFA5E1 /* Build configuration list for PBXProject "SiriTrace" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A46CFB14ACC3B0946ED18B /* Debug */,
+				BAAB62068634AC0900C56B76 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4E96D6645B509AE0CA1D8F2D /* Build configuration list for PBXNativeTarget "SiriTrace" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				11B8EFBB53E4F8CBA1F0A94F /* Debug */,
+				8DE0DAFD1200E8F996E7A36A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D200677618E54AB4DA17AB8C /* Project object */;
+}
