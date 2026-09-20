@@ -138,7 +138,11 @@ final class SiriEngineMonitor {
         if event.isPCC || lastNetworkStatus == .appleCloud {
             currentStatus = .privateCloud
             chipInfo = "Apple Neural Engine"
-            networkInfo = "Tráfico saliente: nube segura de Apple (cifrado E2E)"
+            if event.subsystem.contains("pegasus") || event.subsystem.contains("parsec") {
+                networkInfo = "Conexión saliente: Búsqueda Web de Apple (Pegasus / Parsec)"
+            } else {
+                networkInfo = "Conexión saliente: Nube de Apple (Private Cloud Compute)"
+            }
             return
         }
 
@@ -205,6 +209,11 @@ final class SiriEngineMonitor {
         // Prefer extracted query text
         if let query = event.queryText {
             return query
+        }
+
+        // If we already have a clean query from an earlier event in the current request, keep it
+        if lastPrompt != "Esperando orden…" && lastPrompt != "Procesando solicitud…" && !lastPrompt.isEmpty {
+            return lastPrompt
         }
 
         // Fallback: return a generic message (never show raw ObjC selectors)

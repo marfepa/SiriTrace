@@ -4,9 +4,11 @@ import OSLog
 
 // MARK: - Log Stream Watcher
 
-/// Polls `OSLogStore` for Siri / Apple Intelligence subsystem entries.
-/// Classifies events primarily by **subsystem** (not just message content)
-/// and emits via a `PassthroughSubject` that does NOT retain stale values.
+/// Polls `OSLogStore` for Siri / Apple Intelligence / Pegasus / Parsec subsystem entries.
+/// Accurately differentiates between:
+/// 1. Local on-device execution (ASR, App Intents, local model)
+/// 2. Apple Cloud / Web Search (Pegasus, Parsec, Private Cloud Compute)
+/// 3. Third-party external models (ChatGPT)
 final class LogStreamWatcher: @unchecked Sendable {
 
     // MARK: Public
@@ -28,7 +30,13 @@ final class LogStreamWatcher: @unchecked Sendable {
         "com.apple.PrivateCloudCompute",
         "com.apple.assistant",
         "com.apple.AppleIntelligence",
-        "com.apple.generativeexperience"
+        "com.apple.generativeexperience",
+        "com.apple.generativeexperiencesruntime",
+        "com.apple.generativeassistanttools",
+        "com.apple.pegasuskit",
+        "com.apple.parsec",
+        "com.apple.parsecd",
+        "com.apple.searchtoold"
     ]
 
     /// How far back each poll window looks (seconds).
@@ -39,7 +47,7 @@ final class LogStreamWatcher: @unchecked Sendable {
 
     /// Deduplicate: track the last N processed entry dates to avoid re-emitting.
     private var processedEntryDates = Set<Date>()
-    private let maxTrackedDates = 200
+    private let maxTrackedDates = 300
 
     // MARK: Lifecycle
 
@@ -109,15 +117,24 @@ final class LogStreamWatcher: @unchecked Sendable {
         let messageLower = message.lowercased()
         let timestamp = entry.date
 
-        // Skip low-value debug/internal messages
+        // Filter out background database indexing noise from intelligenceplatform
+        if subsystem == "com.apple.intelligenceplatform" {
+            if isIntelligencePlatformNoise(messageLower) {
+                return nil
+            }
+        }
+
+        // Skip low-value debug/internal noise
         guard isRelevantMessage(messageLower) else { return nil }
 
         let queryText = extractQueryText(from: message)
 
-        // ── Primary classification by subsystem ──
-
-        // PCC subsystem → definitively Private Cloud Compute
-        if subsystem == "com.apple.PrivateCloudCompute" {
+        // ── 1. Cloud & Web Search Subsystems (Pegasus, Parsec, PCC) ──
+        if subsystem == "com.apple.PrivateCloudCompute" ||
+           subsystem == "com.apple.pegasuskit" ||
+           subsystem == "com.apple.parsec" ||
+           subsystem == "com.apple.parsecd" ||
+           subsystem == "com.apple.searchtoold" {
             return SiriLogEvent(
                 isActive: true, isLocal: false, isPCC: true, isExternalService: false,
                 rawMessage: message, queryText: queryText,
@@ -125,9 +142,24 @@ final class LogStreamWatcher: @unchecked Sendable {
             )
         }
 
-        // ── Secondary: message-content hints within Siri/Intelligence subsystems ──
+        // ── 2. Cloud & Web Search Content Patterns ──
+        if messageLower.contains("sam batch search") ||
+           messageLower.contains("samintelligenceflow") ||
+           messageLower.contains("parsecdconnection") ||
+           messageLower.contains("parsec_warmup") ||
+           messageLower.contains("parsec_connection") ||
+           messageLower.contains("pccclient") ||
+           messageLower.contains("privatecloudcompute") ||
+           messageLower.contains("pcc enqueue") ||
+           messageLower.contains("websearch") {
+            return SiriLogEvent(
+                isActive: true, isLocal: false, isPCC: true, isExternalService: false,
+                rawMessage: message, queryText: queryText,
+                subsystem: subsystem, timestamp: timestamp
+            )
+        }
 
-        // External AI indicators (very specific patterns)
+        // ── 3. External AI (ChatGPT / third-party providers) ──
         if messageLower.contains("externalmodelprovider") ||
            messageLower.contains("thirdpartymodel") ||
            messageLower.contains("chatgpt") ||
@@ -139,20 +171,10 @@ final class LogStreamWatcher: @unchecked Sendable {
             )
         }
 
-        // PCC indicators within other subsystems
-        if messageLower.contains("pccclient") ||
-           messageLower.contains("privatecloudcompute") ||
-           (messageLower.contains("pcc") && messageLower.contains("enqueue")) {
-            return SiriLogEvent(
-                isActive: true, isLocal: false, isPCC: true, isExternalService: false,
-                rawMessage: message, queryText: queryText,
-                subsystem: subsystem, timestamp: timestamp
-            )
-        }
-
-        // Local inference indicators
+        // ── 4. Local Inference Indicators ──
         if messageLower.contains("localinference") ||
            messageLower.contains("ane_inference") ||
+           messageLower.contains("uod:1") ||
            (messageLower.contains("on-device") && messageLower.contains("infer")) ||
            (messageLower.contains("neural") && messageLower.contains("engine") && messageLower.contains("execut")) {
             return SiriLogEvent(
@@ -162,10 +184,10 @@ final class LogStreamWatcher: @unchecked Sendable {
             )
         }
 
-        // Generic Siri activity (subsystem is Siri-related but no routing signal)
-        // → default to local (most Siri actions are local)
+        // ── 5. Generic Siri Activity ──
         if subsystem.hasPrefix("com.apple.siri") ||
-           subsystem.hasPrefix("com.apple.assistant") {
+           subsystem.hasPrefix("com.apple.assistant") ||
+           subsystem.contains("generative") {
             return SiriLogEvent(
                 isActive: true, isLocal: true, isPCC: false, isExternalService: false,
                 rawMessage: message, queryText: queryText,
@@ -173,22 +195,37 @@ final class LogStreamWatcher: @unchecked Sendable {
             )
         }
 
-        // Intelligence platform activity without specific routing → local default
-        return SiriLogEvent(
-            isActive: true, isLocal: true, isPCC: false, isExternalService: false,
-            rawMessage: message, queryText: queryText,
-            subsystem: subsystem, timestamp: timestamp
-        )
+        return nil
     }
 
-    // MARK: Filtering
+    // MARK: Noise Filtering
 
-    /// Returns `false` for low-value internal messages that shouldn't trigger state changes.
+    /// Filters out internal SQLite/Biome view updating logs that do not represent Siri requests.
+    private func isIntelligencePlatformNoise(_ messageLower: String) -> Bool {
+        let dbPatterns = [
+            "viewupdate",
+            "sourceupdater",
+            "appsrecentlyfocused",
+            "itddatestamp",
+            "dropping notification",
+            "using target provided",
+            "beginning view update",
+            "ending view update",
+            "view was updated",
+            "no update required",
+            "finished update",
+            "datastream"
+        ]
+        for pattern in dbPatterns {
+            if messageLower.contains(pattern) { return true }
+        }
+        return false
+    }
+
+    /// Returns `false` for low-value internal system noise.
     private func isRelevantMessage(_ messageLower: String) -> Bool {
-        // Skip very short messages
         if messageLower.count < 10 { return false }
 
-        // Skip pure debug/lifecycle noise
         let noisePatterns = [
             "accessibility:",
             "vending elements",
@@ -210,7 +247,7 @@ final class LogStreamWatcher: @unchecked Sendable {
     // MARK: Query Text Extraction
 
     /// Attempts to extract a user-facing query from the log message.
-    /// Returns `nil` if the message is purely technical.
+    /// Returns `nil` if the message is purely technical or database-related.
     private func extractQueryText(from message: String) -> String? {
         // Reject ObjC selectors and internal method names
         if message.hasPrefix("*-[") || message.hasPrefix("-[") || message.hasPrefix("+[") {
@@ -220,16 +257,22 @@ final class LogStreamWatcher: @unchecked Sendable {
             return nil
         }
 
+        // Reject database/view update strings
+        let technicalPrefixes = ["ViewUpdate:", "SourceUpdater:", "Using target", "App.InFocus", "SAM:", "proxyForSAM"]
+        for prefix in technicalPrefixes {
+            if message.contains(prefix) { return nil }
+        }
+
         // Try to find text between quotes
         if let range = message.range(of: #""([^"]+)""#, options: .regularExpression) {
             let quoted = message[range].dropFirst().dropLast()
-            if quoted.count >= 3 {
+            if quoted.count >= 3 && !quoted.contains(":") && !quoted.contains(".") {
                 return String(quoted.prefix(80))
             }
         }
 
         // Check if message looks like natural language (no brackets, colons, underscores)
-        let suspicious: [Character] = ["[", "]", "_"]
+        let suspicious: [Character] = ["[", "]", "_", "<", ">"]
         let colonCount = message.filter({ $0 == ":" }).count
         let hasSuspiciousChars = message.contains(where: { suspicious.contains($0) })
 

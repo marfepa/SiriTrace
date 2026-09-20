@@ -20,17 +20,22 @@ final class NetworkProcessWatcher: @unchecked Sendable {
     private var isMonitoring = false
     private let queue = DispatchQueue(label: "com.siritrace.networkwatcher", qos: .utility)
 
-    /// Process names associated with Siri and Apple Intelligence.
+    /// Process names associated with Siri, Apple Intelligence, and Web/Cloud Search.
     private let targetProcessNames: Set<String> = [
         "assistantd",
         "siriknowledged",
         "siriactionsd",
         "sirittsd",
         "generativeexperienced",
+        "generativeexperiencesd",
         "intelligenceplatformd",
         "siri_suggestionsd",
         "apple_intelligenced",
-        "siriinferenced"
+        "siriinferenced",
+        "siriappintentsd",
+        "parsecd",
+        "searchtoold",
+        "weatherd"
     ]
 
     /// Polling interval in seconds.

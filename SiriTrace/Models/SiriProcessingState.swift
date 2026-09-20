@@ -38,7 +38,7 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         switch self {
         case .idle:         "Espera"
         case .local:        "Privado"
-        case .privateCloud: "Nube Apple"
+        case .privateCloud: "Nube / Web"
         case .externalAI:   "Externo"
         }
     }
@@ -49,7 +49,7 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         switch self {
         case .idle:         "Siri en espera"
         case .local:        "Privado — todo en tu Mac"
-        case .privateCloud: "Nube segura de Apple"
+        case .privateCloud: "Nube de Apple y Búsqueda Web"
         case .externalAI:   "Servicio externo (p.ej. ChatGPT)"
         }
     }
@@ -61,7 +61,7 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         case .local:
             "Tu solicitud se procesa aquí, en tu Mac. Ningún dato sale de tu dispositivo."
         case .privateCloud:
-            "Tu solicitud se envía a la nube segura de Apple con cifrado de extremo a extremo."
+            "Siri ha consultado internet o los servidores de Apple para responder a tu solicitud."
         case .externalAI:
             "Tu solicitud se ha reenviado a un servicio externo. Revisa la privacidad del proveedor."
         }
@@ -73,7 +73,7 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         switch self {
         case .idle:         ""
         case .local:        "🟢 Privacidad alta"
-        case .privateCloud: "🟡 Privacidad media"
+        case .privateCloud: "🟡 Nube / Búsqueda web"
         case .externalAI:   "🔴 Revisar privacidad"
         }
     }
