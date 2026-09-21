@@ -20,28 +20,38 @@ struct NotchGeometry {
     }
 }
 
+// MARK: - Animation State Bridge
+
+@MainActor
+@Observable
+final class HUDAnimationState {
+    var isExpanded: Bool = false
+}
+
 // MARK: - Floating HUD Window (Mac Dynamic Island)
 
 /// Borderless, non-activating panel that docks directly into the hardware MacBook Notch,
-/// expanding smoothly downwards when Siri is active, and retracting when dismissed.
+/// expanding smoothly downwards with fluid spring physics when Siri is active,
+/// and retracting cleanly back into the notch when dismissed.
 @MainActor
 final class FloatingHUDWindow: NSPanel {
 
     private let notchGeo: NotchGeometry
+    private let animState = HUDAnimationState()
 
     init(monitor: SiriEngineMonitor) {
         let screen = NSScreen.main ?? NSScreen.screens.first!
         let geo = NotchGeometry.current(for: screen)
         self.notchGeo = geo
 
-        // Dynamic Island dimensions
-        let islandWidth: CGFloat = geo.hasNotch ? max(geo.notchWidth + 110, 310) : 310
-        let islandHeight: CGFloat = geo.hasNotch ? (geo.notchHeight + 42) : 58
+        // Dynamic Island dimensions (ample width to prevent text truncation)
+        let islandWidth: CGFloat = geo.hasNotch ? max(geo.notchWidth + 170, 390) : 380
+        let islandHeight: CGFloat = geo.hasNotch ? (geo.notchHeight + 48) : 60
 
         let x = screen.frame.midX - (islandWidth / 2)
         let y = geo.hasNotch
             ? (screen.frame.maxY - islandHeight)
-            : (screen.visibleFrame.maxY - islandHeight - 8)
+            : (screen.visibleFrame.maxY - islandHeight - 6)
 
         super.init(
             contentRect: NSRect(x: x, y: y, width: islandWidth, height: islandHeight),
@@ -53,7 +63,7 @@ final class FloatingHUDWindow: NSPanel {
         level = .screenSaver // High floating level to stay on top of fullscreen windows & menubar
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = !geo.hasNotch // Hardware notch creates its own optical silhouette
+        hasShadow = false // Shadow rendered via SwiftUI shape for seamless notch integration
         isMovableByWindowBackground = false
         animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
@@ -61,74 +71,33 @@ final class FloatingHUDWindow: NSPanel {
         titlebarAppearsTransparent = true
 
         let hostingView = NSHostingView(
-            rootView: DynamicIslandContentView(monitor: monitor, hasNotch: geo.hasNotch, notchHeight: geo.notchHeight)
+            rootView: DynamicIslandContentView(
+                monitor: monitor,
+                animState: animState,
+                hasNotch: geo.hasNotch,
+                notchHeight: geo.notchHeight
+            )
         )
         contentView = hostingView
     }
 
-    /// Shows the Dynamic Island with an expansion animation
+    /// Shows the Dynamic Island with an expansion spring animation from the notch
     func showIsland() {
-        alphaValue = 0.0
+        alphaValue = 1.0
         orderFront(nil)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            animator().alphaValue = 1.0
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.72, blendDuration: 0)) {
+            animState.isExpanded = true
         }
     }
 
-    /// Retracts and hides the Dynamic Island
+    /// Retracts and hides the Dynamic Island into the notch
     func hideIsland(completion: (() -> Void)? = nil) {
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            animator().alphaValue = 0.0
-        }, completionHandler: { [weak self] in
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.85, blendDuration: 0)) {
+            animState.isExpanded = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.orderOut(nil)
             completion?()
-        })
-    }
-}
-
-// MARK: - Dynamic Island Shape
-
-/// Custom shape that seamlessly attaches to the top notch with rounded bottom corners.
-struct NotchConnectedShape: Shape {
-    var cornerRadius: CGFloat = 20
-    var hasNotch: Bool
-
-    func path(in rect: CGRect) -> Path {
-        if hasNotch {
-            var path = Path()
-            // Top-left at the very top edge of the screen
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            // Top edge touching hardware bezel
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            // Down to bottom-right corner
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cornerRadius))
-            // Rounded bottom-right
-            path.addArc(
-                center: CGPoint(x: rect.maxX - cornerRadius, y: rect.maxY - cornerRadius),
-                radius: cornerRadius,
-                startAngle: .degrees(0),
-                endAngle: .degrees(90),
-                clockwise: false
-            )
-            // Bottom edge
-            path.addLine(to: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY))
-            // Rounded bottom-left
-            path.addArc(
-                center: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY - cornerRadius),
-                radius: cornerRadius,
-                startAngle: .degrees(90),
-                endAngle: .degrees(180),
-                clockwise: false
-            )
-            // Back up to top-left
-            path.closeSubpath()
-            return path
-        } else {
-            return Path(roundedRect: rect, cornerRadius: cornerRadius)
         }
     }
 }
@@ -137,75 +106,115 @@ struct NotchConnectedShape: Shape {
 
 private struct DynamicIslandContentView: View {
     var monitor: SiriEngineMonitor
+    var animState: HUDAnimationState
     var hasNotch: Bool
     var notchHeight: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
-            // Padding offset if hugging physical notch
+            // Padding offset beneath physical hardware notch
             if hasNotch {
-                Spacer().frame(height: max(0, notchHeight - 6))
+                Spacer().frame(height: max(0, notchHeight - 4))
             }
 
             HStack(spacing: 12) {
                 // Left Wing: Animated Status Orb
                 statusOrb
 
-                // Center Island: Title & Telemetry
+                // Center Column: Concise Title & Telemetry/Query
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(islandTitle)
-                            .font(.system(size: 12, weight: .semibold))
+                        Text(monitor.currentStatus.hudTitle)
+                            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
 
-                        if !monitor.currentStatus.privacyBadge.isEmpty && monitor.currentStatus != .idle {
-                            Text(monitor.currentStatus.emoji)
-                                .font(.system(size: 10))
+                        if let badge = monitor.currentStatus.hudBadge, monitor.currentStatus != .idle {
+                            Text(badge)
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(monitor.currentStatus.color)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    Capsule()
+                                        .fill(monitor.currentStatus.color.opacity(0.2))
+                                )
                         }
                     }
 
-                    Text(islandSubtitle)
+                    Text(subtitleText)
                         .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.72))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 8)
 
-                // Right Wing: Response time badge or mode indicator
-                if let ms = monitor.lastResponseTimeMs, monitor.currentStatus != .idle {
-                    Text(ms.humanReadableTime)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.white.opacity(0.15)))
-                } else if monitor.currentStatus == .idle {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.4))
-                }
+                // Right Wing: Latency badge or processing waveform
+                rightWing
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, hasNotch ? 8 : 10)
-            .padding(.top, hasNotch ? 2 : 10)
+            .padding(.bottom, hasNotch ? 10 : 12)
+            .padding(.top, hasNotch ? 4 : 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            NotchConnectedShape(cornerRadius: 18, hasNotch: hasNotch)
-                .fill(Color.black)
-                .overlay(
-                    NotchConnectedShape(cornerRadius: 18, hasNotch: hasNotch)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+            UnevenRoundedRectangle(
+                topLeadingRadius: hasNotch ? 0 : 20,
+                bottomLeadingRadius: 22,
+                bottomTrailingRadius: 22,
+                topTrailingRadius: hasNotch ? 0 : 20,
+                style: .continuous
+            )
+            .fill(Color.black)
+            .overlay(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: hasNotch ? 0 : 20,
+                    bottomLeadingRadius: 22,
+                    bottomTrailingRadius: 22,
+                    topTrailingRadius: hasNotch ? 0 : 20,
+                    style: .continuous
                 )
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.white.opacity(0.06),
+                            Color.white.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
+            )
+            .shadow(
+                color: .black.opacity(hasNotch ? 0.45 : 0.35),
+                radius: hasNotch ? 12 : 16,
+                x: 0,
+                y: hasNotch ? 4 : 6
+            )
         )
+        // Spring Morphing animation rooted at the screen notch
+        .scaleEffect(
+            x: animState.isExpanded ? 1.0 : (hasNotch ? 0.75 : 0.6),
+            y: animState.isExpanded ? 1.0 : 0.1,
+            anchor: .top
+        )
+        .opacity(animState.isExpanded ? 1.0 : 0.0)
+        .offset(y: animState.isExpanded ? 0 : (hasNotch ? -8 : -14))
     }
+
+    // MARK: Subviews
 
     private var statusOrb: some View {
         ZStack {
             Circle()
-                .fill(monitor.currentStatus.color.opacity(0.3))
+                .fill(monitor.currentStatus.color.opacity(0.22))
+                .frame(width: 28, height: 28)
+
+            Circle()
+                .strokeBorder(monitor.currentStatus.color.opacity(0.4), lineWidth: 1)
                 .frame(width: 28, height: 28)
 
             Image(systemName: monitor.currentStatus.iconName)
@@ -215,14 +224,36 @@ private struct DynamicIslandContentView: View {
         }
     }
 
-    private var islandTitle: String {
-        if monitor.currentStatus == .idle {
-            return "Siri listo"
+    @ViewBuilder
+    private var rightWing: some View {
+        if let ms = monitor.lastResponseTimeMs, monitor.currentStatus != .idle {
+            HStack(spacing: 3) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(monitor.currentStatus.color)
+                Text("\(ms) ms")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+            )
+        } else if monitor.currentStatus != .idle {
+            Image(systemName: "waveform")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(monitor.currentStatus.color)
+                .symbolEffect(.variableColor.iterative, isActive: true)
+        } else {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.35))
         }
-        return monitor.currentStatus.friendlyLabel
     }
 
-    private var islandSubtitle: String {
+    private var subtitleText: String {
         if monitor.currentStatus == .idle {
             return "Escuchando orden…"
         }

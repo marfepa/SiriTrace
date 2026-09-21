@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CoreGraphics
 @preconcurrency import Combine
 
 // MARK: - Siri App Focus Watcher
@@ -12,7 +13,7 @@ final class SiriAppFocusWatcher {
 
     // MARK: Public
 
-    /// Emits `true` when Siri / Apple Intelligence is frontmost, and `false` otherwise.
+    /// Emits `true` when Siri / Apple Intelligence is frontmost or visible, and `false` otherwise.
     let isSiriFrontmost = CurrentValueSubject<Bool, Never>(false)
 
     // MARK: Private
@@ -27,7 +28,8 @@ final class SiriAppFocusWatcher {
         "com.apple.campo",
         "com.apple.camporemoteservice",
         "com.apple.siri.launcher",
-        "com.apple.siriuserservice"
+        "com.apple.siriuserservice",
+        "com.apple.siri.directaccess"
     ]
 
     // MARK: Lifecycle
@@ -37,36 +39,32 @@ final class SiriAppFocusWatcher {
         isMonitoring = true
 
         // 1. Listen to NSWorkspace app activation/deactivation notifications
-        NotificationCenter.default.publisher(for: NSWorkspace.didActivateApplicationNotification, object: nil)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.checkFrontmostApp()
-            }
-            .store(in: &cancellables)
+        let notifs: [NSNotification.Name] = [
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.didDeactivateApplicationNotification,
+            NSWorkspace.didHideApplicationNotification,
+            NSWorkspace.didUnhideApplicationNotification,
+            NSWorkspace.activeSpaceDidChangeNotification
+        ]
 
-        NotificationCenter.default.publisher(for: NSWorkspace.didDeactivateApplicationNotification, object: nil)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.checkFrontmostApp()
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: NSWorkspace.didHideApplicationNotification, object: nil)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.checkFrontmostApp()
-            }
-            .store(in: &cancellables)
-
-        // 2. Scheduled timer on MainRunLoop for rapid tracking
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.checkFrontmostApp()
+        for notif in notifs {
+            NotificationCenter.default.publisher(for: notif, object: nil)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.checkSiriPresence()
+                }
+                .store(in: &cancellables)
         }
-        timer.tolerance = 0.1
+
+        // 2. High-precision lightweight timer (120ms) for instantaneous detection of Siri overlay
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+            self?.checkSiriPresence()
+        }
+        timer.tolerance = 0.03
         self.timer = timer
 
         // Immediate check
-        checkFrontmostApp()
+        checkSiriPresence()
     }
 
     func stopMonitoring() {
@@ -78,25 +76,45 @@ final class SiriAppFocusWatcher {
 
     // MARK: Evaluation
 
-    private func checkFrontmostApp() {
-        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
-            if isSiriFrontmost.value {
-                isSiriFrontmost.send(false)
-            }
-            return
-        }
+    private func checkSiriPresence() {
+        let isPresent = isSiriFrontApp() || isSiriWindowVisible()
 
+        if isPresent != isSiriFrontmost.value {
+            isSiriFrontmost.send(isPresent)
+        }
+    }
+
+    /// Checks if frontmost application belongs to Siri or Campo.
+    private func isSiriFrontApp() -> Bool {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else { return false }
         let bid = (frontApp.bundleIdentifier ?? "").lowercased()
         let name = (frontApp.localizedName ?? "").lowercased()
 
-        let isSiri = siriBundleIDs.contains(bid) ||
-                     bid.contains(".siri") ||
-                     bid.contains(".campo") ||
-                     name == "siri" ||
-                     name.hasPrefix("siri ")
+        return siriBundleIDs.contains(bid) ||
+               bid.contains(".siri") ||
+               bid.contains(".campo") ||
+               name == "siri" ||
+               name.hasPrefix("siri ")
+    }
 
-        if isSiri != isSiriFrontmost.value {
-            isSiriFrontmost.send(isSiri)
+    /// Checks if any on-screen window belongs to Siri (even as an auxiliary or overlay panel).
+    private func isSiriWindowVisible() -> Bool {
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return false
         }
+
+        for info in windowList {
+            guard let ownerName = (info[kCGWindowOwnerName as String] as? String)?.lowercased() else { continue }
+            if ownerName == "siri" || ownerName == "sirincservice" || ownerName.contains("campo") {
+                if let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                   let width = bounds["Width"] as? CGFloat,
+                   let height = bounds["Height"] as? CGFloat,
+                   width > 60 && height > 60 {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
+

@@ -43,6 +43,26 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         }
     }
 
+    // MARK: HUD Labels (compact for Dynamic Island)
+
+    var hudTitle: String {
+        switch self {
+        case .idle:         "Siri listo"
+        case .local:        "En tu Mac"
+        case .privateCloud: "Nube Apple"
+        case .externalAI:   "IA Externa"
+        }
+    }
+
+    var hudBadge: String? {
+        switch self {
+        case .idle:         nil
+        case .local:        "ANE"
+        case .privateCloud: "PCC"
+        case .externalAI:   "ChatGPT"
+        }
+    }
+
     // MARK: Friendly Labels (main UI, non-technical)
 
     var friendlyLabel: String {

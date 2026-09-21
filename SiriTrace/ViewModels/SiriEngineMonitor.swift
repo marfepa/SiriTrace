@@ -52,6 +52,9 @@ final class SiriEngineMonitor {
     /// Task for the idle timeout.
     @ObservationIgnored private var idleTask: Task<Void, Never>?
 
+    /// Task for quick dismissal of the Dynamic Island when Siri loses focus / dismisses.
+    @ObservationIgnored private var hudDismissTask: Task<Void, Never>?
+
     private let maxHistoryItems = 500
 
     // MARK: Init
@@ -99,8 +102,7 @@ final class SiriEngineMonitor {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isFrontmost in
                 MainActor.assumeIsolated {
-                    self?.isSiriFrontmost = isFrontmost
-                    self?.updateHUDVisibility()
+                    self?.handleSiriFocusChanged(isFrontmost)
                 }
             }
             .store(in: &cancellables)
@@ -174,13 +176,47 @@ final class SiriEngineMonitor {
 
     // MARK: Dynamic Island Visibility
 
-    func updateHUDVisibility() {
+    func handleSiriFocusChanged(_ isFrontmost: Bool) {
+        isSiriFrontmost = isFrontmost
         guard autoShowDynamicIsland else { return }
 
-        // Island appears if Siri app is in the foreground OR if request is actively processing
-        let shouldShow = isSiriFrontmost || currentStatus != .idle
-        if isHUDVisible != shouldShow {
-            isHUDVisible = shouldShow
+        if isFrontmost {
+            // Siri is open / active: cancel dismissal and show immediately
+            hudDismissTask?.cancel()
+            hudDismissTask = nil
+            if !isHUDVisible {
+                isHUDVisible = true
+            }
+        } else {
+            // Siri has been dismissed by user: retract HUD quickly
+            scheduleQuickHUDDismissal()
+        }
+    }
+
+    /// Schedules retraction of Dynamic Island shortly after Siri is closed.
+    private func scheduleQuickHUDDismissal() {
+        guard autoShowDynamicIsland else { return }
+        hudDismissTask?.cancel()
+        // If Siri was just idle or dismissed without action, retract in 0.3s.
+        // If a request was processed, allow 1.4s grace period to see the final badge & latency.
+        let gracePeriod: TimeInterval = (currentStatus == .idle) ? 0.3 : 1.4
+        hudDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(gracePeriod))
+            guard !Task.isCancelled else { return }
+            self?.isHUDVisible = false
+        }
+    }
+
+    func updateHUDVisibility() {
+        guard autoShowDynamicIsland else { return }
+        if isSiriFrontmost {
+            hudDismissTask?.cancel()
+            hudDismissTask = nil
+            isHUDVisible = true
+        } else if currentStatus != .idle {
+            scheduleQuickHUDDismissal()
+        } else {
+            isHUDVisible = false
         }
     }
 
@@ -203,7 +239,9 @@ final class SiriEngineMonitor {
         chipInfo = "Apple Neural Engine"
         networkInfo = "Sin conexión saliente"
         lastPrompt = "Esperando orden…"
-        updateHUDVisibility()
+        if !isSiriFrontmost {
+            isHUDVisible = false
+        }
     }
 
     // MARK: History
@@ -259,6 +297,8 @@ final class SiriEngineMonitor {
     }
 
     func toggleHUD() {
+        hudDismissTask?.cancel()
+        hudDismissTask = nil
         isHUDVisible.toggle()
     }
 
