@@ -32,7 +32,7 @@ struct SiriTraceApp: App {
 
 // MARK: - App Delegate
 
-/// Manages the floating HUD window lifecycle.
+/// Manages the Dynamic Island HUD window lifecycle.
 @MainActor
 final class SiriTraceAppDelegate: NSObject, NSApplicationDelegate {
     private var hudWindow: FloatingHUDWindow?
@@ -41,11 +41,12 @@ final class SiriTraceAppDelegate: NSObject, NSApplicationDelegate {
         if hudWindow == nil {
             hudWindow = FloatingHUDWindow(monitor: monitor)
         }
-        hudWindow?.orderFront(nil)
+        hudWindow?.showIsland()
     }
 
     func hideHUD() {
-        hudWindow?.orderOut(nil)
-        hudWindow = nil
+        hudWindow?.hideIsland { [weak self] in
+            self?.hudWindow = nil
+        }
     }
 }

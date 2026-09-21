@@ -5,8 +5,8 @@ import Observation
 // MARK: - Siri Engine Monitor (ViewModel)
 
 /// Central coordinator that fuses signals from `LogStreamWatcher`,
-/// `NetworkProcessWatcher` and `NeuralEngineMonitor` into a single
-/// observable processing state for the UI layer.
+/// `NetworkProcessWatcher`, `NeuralEngineMonitor`, and `SiriAppFocusWatcher`
+/// into a single observable state for the UI layer and Dynamic Island HUD.
 @MainActor
 @Observable
 final class SiriEngineMonitor {
@@ -18,18 +18,44 @@ final class SiriEngineMonitor {
     var lastResponseTimeMs: Int? = nil
     var history: [SiriEventLog] = []
     var isHUDVisible: Bool = false
+    var isSiriFrontmost: Bool = false
     var chipInfo: String = "Apple Neural Engine"
-    var networkInfo: String = "Sin conexión saliente (0 B/s)"
+    var networkInfo: String = "Sin conexión saliente"
+
+    // MARK: Configuration
+
+    /// Seconds of inactivity before returning to idle. Configurable from Settings.
+    var idleTimeoutSeconds: TimeInterval = 15.0
+
+    /// Automatically display the Dynamic Island when Siri is active or in the foreground.
+    var autoShowDynamicIsland: Bool = true
+
+    // MARK: Export Notification
+
+    var lastExportNotification: String? = nil
 
     // MARK: Private
 
     @ObservationIgnored private let logWatcher = LogStreamWatcher()
     @ObservationIgnored private let networkWatcher = NetworkProcessWatcher()
     @ObservationIgnored private let aneMonitor = NeuralEngineMonitor()
+    @ObservationIgnored private let focusWatcher = SiriAppFocusWatcher()
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+
+    /// Most recent signals from each subsystem (read at evaluation time).
+    @ObservationIgnored private var lastNetworkStatus: NetworkDestination = .none
+    @ObservationIgnored private var lastANEActive: Bool = false
+
+    /// Timestamp of the current request start (for response time calculation).
     @ObservationIgnored private var requestStartDate: Date?
 
-    private let maxHistoryItems = 100
+    /// Task for the idle timeout.
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+
+    /// Task for quick dismissal of the Dynamic Island when Siri loses focus / dismisses.
+    @ObservationIgnored private var hudDismissTask: Task<Void, Never>?
+
+    private let maxHistoryItems = 500
 
     // MARK: Init
 
@@ -41,119 +67,268 @@ final class SiriEngineMonitor {
     // MARK: Subscriptions
 
     private func setupSubscriptions() {
-        Publishers.CombineLatest3(
-            logWatcher.eventPublisher,
-            networkWatcher.hasActiveTraffic,
-            aneMonitor.aneActivity
-        )
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] logEvent, hasNetworkTraffic, hasANEActivity in
-            MainActor.assumeIsolated {
-                self?.evaluateState(
-                    logEvent: logEvent,
-                    isCloudActive: hasNetworkTraffic,
-                    isANEActive: hasANEActivity
-                )
+        // ── 1. Log events (primary signal) ──
+        logWatcher.eventPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] logEvent in
+                MainActor.assumeIsolated {
+                    self?.handleLogEvent(logEvent)
+                }
             }
-        }
-        .store(in: &cancellables)
+            .store(in: &cancellables)
+
+        // ── 2. Network status (secondary / confirmatory signal) ──
+        networkWatcher.networkStatus
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                MainActor.assumeIsolated {
+                    self?.lastNetworkStatus = status
+                }
+            }
+            .store(in: &cancellables)
+
+        // ── 3. ANE activity (supplementary signal) ──
+        aneMonitor.aneActivity
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isActive in
+                MainActor.assumeIsolated {
+                    self?.lastANEActive = isActive
+                }
+            }
+            .store(in: &cancellables)
+
+        // ── 4. Siri App Focus (Dynamic Island auto-visibility) ──
+        focusWatcher.isSiriFrontmost
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isFrontmost in
+                MainActor.assumeIsolated {
+                    self?.handleSiriFocusChanged(isFrontmost)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func startMonitoring() {
         logWatcher.startMonitoring()
         networkWatcher.startMonitoring()
         aneMonitor.startMonitoring()
+        focusWatcher.startMonitoring()
+    }
+
+    // MARK: Event Handling
+
+    private func handleLogEvent(_ event: SiriLogEvent) {
+        // Start response timer on first event of a session
+        if requestStartDate == nil {
+            requestStartDate = event.timestamp
+        }
+
+        // Compute response time from request start
+        let elapsed = Date().timeIntervalSince(requestStartDate ?? Date())
+        lastResponseTimeMs = max(1, Int(elapsed * 1000))
+
+        // Update display prompt (prefer extracted query text over raw message)
+        lastPrompt = displayableQuery(from: event)
+
+        // ── Evaluate state using log (primary) + network (secondary) ──
+        evaluateState(logEvent: event)
+
+        // Record history with full technical telemetry
+        recordHistory(event: event)
+
+        // Update Dynamic Island visibility
+        updateHUDVisibility()
+
+        // Reset idle timer — state will return to idle after timeout
+        resetIdleTimer()
     }
 
     // MARK: State Evaluation
 
-    private func evaluateState(
-        logEvent: SiriLogEvent?,
-        isCloudActive: Bool,
-        isANEActive: Bool
-    ) {
-        // No active Siri event
-        guard let event = logEvent, event.isActive else {
-            if isANEActive {
-                currentStatus = .local
-                chipInfo = "Apple Neural Engine (activo)"
-                networkInfo = "Sin conexión saliente (0 B/s)"
+    private func evaluateState(logEvent event: SiriLogEvent) {
+        // Priority 1: Log says external OR network detected third-party connections
+        if event.isExternalService || lastNetworkStatus == .thirdParty {
+            currentStatus = .externalAI
+            chipInfo = "Apple Neural Engine"
+            networkInfo = "Tráfico saliente detectado: servicio externo"
+            return
+        }
+
+        // Priority 2: Log says PCC OR network detected Apple cloud connections
+        if event.isPCC || lastNetworkStatus == .appleCloud {
+            currentStatus = .privateCloud
+            chipInfo = "Apple Neural Engine"
+            if event.subsystem.contains("pegasus") || event.subsystem.contains("parsec") {
+                networkInfo = "Conexión saliente: Búsqueda Web de Apple (Pegasus / Parsec)"
             } else {
-                currentStatus = .idle
-                chipInfo = "Apple Neural Engine"
-                networkInfo = "Sin conexión saliente (0 B/s)"
+                networkInfo = "Conexión saliente: Nube de Apple (Private Cloud Compute)"
             }
             return
         }
 
-        let previousStatus = currentStatus
+        // Priority 3: Local processing (default for Siri activity)
+        currentStatus = .local
+        chipInfo = lastANEActive
+            ? "Apple Neural Engine (activo)"
+            : "Apple Neural Engine"
+        networkInfo = "Sin conexión saliente — todo en tu Mac"
+    }
 
-        // Determine new state
-        if event.isExternalService {
-            currentStatus = .externalAI
-            networkInfo = "Tráfico saliente: proveedor externo"
-        } else if isCloudActive || event.isPCC {
-            currentStatus = .privateCloud
-            networkInfo = "Tráfico saliente: Apple PCC (cifrado E2E)"
-        } else {
-            currentStatus = .local
-            chipInfo = "Apple Neural Engine (activo)"
-            networkInfo = "Ninguna conexión saliente (0 B/s)"
-        }
+    // MARK: Dynamic Island Visibility
 
-        // Compute response time
-        if requestStartDate == nil {
-            requestStartDate = event.timestamp
-        }
-        let elapsed = Date().timeIntervalSince(requestStartDate ?? Date())
-        lastResponseTimeMs = Int(elapsed * 1000)
+    func handleSiriFocusChanged(_ isFrontmost: Bool) {
+        isSiriFrontmost = isFrontmost
+        guard autoShowDynamicIsland else { return }
 
-        // Update prompt
-        lastPrompt = extractQuerySnippet(from: event.message)
-
-        // Record history entry on state change or new activity
-        if previousStatus != currentStatus || currentStatus != .idle {
-            let entry = SiriEventLog(
-                timestamp: event.timestamp,
-                state: currentStatus,
-                querySnippet: lastPrompt,
-                responseTimeMs: lastResponseTimeMs
-            )
-            history.insert(entry, at: 0)
-            if history.count > maxHistoryItems {
-                history = Array(history.prefix(maxHistoryItems))
+        if isFrontmost {
+            // Siri is open / active: cancel dismissal and show immediately
+            hudDismissTask?.cancel()
+            hudDismissTask = nil
+            if !isHUDVisible {
+                isHUDVisible = true
             }
-        }
-
-        // Reset request timer when going idle
-        if currentStatus == .idle {
-            requestStartDate = nil
+        } else {
+            // Siri has been dismissed by user: retract HUD quickly
+            scheduleQuickHUDDismissal()
         }
     }
 
-    // MARK: Helpers
+    /// Schedules retraction of Dynamic Island shortly after Siri is closed.
+    private func scheduleQuickHUDDismissal() {
+        guard autoShowDynamicIsland else { return }
+        hudDismissTask?.cancel()
+        // If Siri was just idle or dismissed without action, retract in 0.3s.
+        // If a request was processed, allow 1.4s grace period to see the final badge & latency.
+        let gracePeriod: TimeInterval = (currentStatus == .idle) ? 0.3 : 1.4
+        hudDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(gracePeriod))
+            guard !Task.isCancelled else { return }
+            self?.isHUDVisible = false
+        }
+    }
 
-    private func extractQuerySnippet(from message: String) -> String {
-        let maxLength = 80
-        let cleaned = message
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let snippet = String(cleaned.prefix(maxLength))
-        return snippet.isEmpty ? "Solicitud detectada" : snippet
+    func updateHUDVisibility() {
+        guard autoShowDynamicIsland else { return }
+        if isSiriFrontmost {
+            hudDismissTask?.cancel()
+            hudDismissTask = nil
+            isHUDVisible = true
+        } else if currentStatus != .idle {
+            scheduleQuickHUDDismissal()
+        } else {
+            isHUDVisible = false
+        }
+    }
+
+    // MARK: Idle Timeout
+
+    private func resetIdleTimer() {
+        idleTask?.cancel()
+        let timeout = idleTimeoutSeconds
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(timeout))
+            guard !Task.isCancelled else { return }
+            self?.transitionToIdle()
+        }
+    }
+
+    private func transitionToIdle() {
+        currentStatus = .idle
+        requestStartDate = nil
+        lastResponseTimeMs = nil
+        chipInfo = "Apple Neural Engine"
+        networkInfo = "Sin conexión saliente"
+        lastPrompt = "Esperando orden…"
+        if !isSiriFrontmost {
+            isHUDVisible = false
+        }
+    }
+
+    // MARK: History
+
+    private func recordHistory(event: SiriLogEvent) {
+        let entry = SiriEventLog(
+            timestamp: event.timestamp,
+            state: currentStatus,
+            querySnippet: displayableQuery(from: event),
+            responseTimeMs: lastResponseTimeMs,
+            subsystem: event.subsystem,
+            rawMessage: event.rawMessage,
+            networkDestination: lastNetworkStatus.description,
+            aneActive: lastANEActive
+        )
+
+        // Avoid duplicate consecutive entries with identical raw message within 1s
+        if let last = history.first,
+           last.rawMessage == entry.rawMessage,
+           abs(last.timestamp.timeIntervalSince(entry.timestamp)) < 1.0 {
+            return
+        }
+
+        history.insert(entry, at: 0)
+        if history.count > maxHistoryItems {
+            history = Array(history.prefix(maxHistoryItems))
+        }
+    }
+
+    // MARK: Display Helpers
+
+    /// Returns a user-friendly query string, filtering out internal messages.
+    private func displayableQuery(from event: SiriLogEvent) -> String {
+        // Prefer extracted query text
+        if let query = event.queryText {
+            return query
+        }
+
+        // If we already have a clean query from an earlier event in the current request, keep it
+        if lastPrompt != "Esperando orden…" && lastPrompt != "Procesando solicitud…" && !lastPrompt.isEmpty {
+            return lastPrompt
+        }
+
+        // Fallback: return a generic message (never show raw ObjC selectors)
+        return "Procesando solicitud…"
     }
 
     // MARK: Public Actions
 
     func clearHistory() {
         history.removeAll()
+        lastExportNotification = nil
     }
 
     func toggleHUD() {
+        hudDismissTask?.cancel()
+        hudDismissTask = nil
         isHUDVisible.toggle()
+    }
+
+    /// Exports directly to Downloads and reveals in Finder
+    func exportToDownloads() {
+        if let url = LogExporter.exportToDownloads(entries: history) {
+            lastExportNotification = "Guardado en Descargas: \(url.lastPathComponent)"
+        } else {
+            lastExportNotification = "Error al exportar archivo"
+        }
+    }
+
+    /// Prompts Save Panel to save at custom location
+    func exportViaSavePanel() {
+        LogExporter.presentSavePanel(entries: history) { [weak self] url in
+            Task { @MainActor [weak self] in
+                if let url {
+                    self?.lastExportNotification = "Guardado: \(url.lastPathComponent)"
+                }
+            }
+        }
+    }
+
+    func clearExportNotification() {
+        lastExportNotification = nil
     }
 
     /// Returns history entries within the last N minutes.
     func recentHistory(minutes: Int) -> [SiriEventLog] {
+        guard minutes > 0 else { return history }
         let cutoff = Date().addingTimeInterval(-TimeInterval(minutes * 60))
         return history.filter { $0.timestamp >= cutoff }
     }

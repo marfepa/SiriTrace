@@ -12,6 +12,7 @@
 		5D28E2C2C5F20089BCF5DCF8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A68D66E6A2253648EE0F9E9 /* SettingsView.swift */; };
 		7734C411F4647D03E44D2B2A /* SiriEventLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEA43346E623BB2A2D4E40A /* SiriEventLog.swift */; };
 		8555C57417C7AC21716E989E /* SiriProcessingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E766A69FE2D8C9D6B3151E80 /* SiriProcessingState.swift */; };
+		95F847F2F2FA36154BBF472F /* SiriAppFocusWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B0728C8A4663697D43F217 /* SiriAppFocusWatcher.swift */; };
 		9DFF9B7532DB769AEBAA295E /* LogExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31FDEEFBD83132083B6A0C02 /* LogExporter.swift */; };
 		AD305168E25705F905F15EFF /* FloatingHUDWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E126DA274C2ED6D14956A9C7 /* FloatingHUDWindow.swift */; };
 		BE885FBB3E0B2F3FD732BC4B /* LogStreamWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051962A49CFB2474928FEEEA /* LogStreamWatcher.swift */; };
@@ -29,6 +30,7 @@
 		2EEA43346E623BB2A2D4E40A /* SiriEventLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriEventLog.swift; sourceTree = "<group>"; };
 		31FDEEFBD83132083B6A0C02 /* LogExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogExporter.swift; sourceTree = "<group>"; };
 		4A68D66E6A2253648EE0F9E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		72B0728C8A4663697D43F217 /* SiriAppFocusWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriAppFocusWatcher.swift; sourceTree = "<group>"; };
 		A79B21A957CB3C2B62C6AA4D /* NetworkProcessWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProcessWatcher.swift; sourceTree = "<group>"; };
 		B1F6D2F8404BEBDC8574FCE1 /* NeuralEngineMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralEngineMonitor.swift; sourceTree = "<group>"; };
 		C13BC314B19DA6FB2EF7C940 /* SiriTraceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriTraceDetailView.swift; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 				051962A49CFB2474928FEEEA /* LogStreamWatcher.swift */,
 				A79B21A957CB3C2B62C6AA4D /* NetworkProcessWatcher.swift */,
 				B1F6D2F8404BEBDC8574FCE1 /* NeuralEngineMonitor.swift */,
+				72B0728C8A4663697D43F217 /* SiriAppFocusWatcher.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -214,6 +217,7 @@
 				C618F5867E3D289045FAF028 /* NetworkProcessWatcher.swift in Sources */,
 				E15228D1EA48F84480675CDE /* NeuralEngineMonitor.swift in Sources */,
 				5D28E2C2C5F20089BCF5DCF8 /* SettingsView.swift in Sources */,
+				95F847F2F2FA36154BBF472F /* SiriAppFocusWatcher.swift in Sources */,
 				4BE3C872B294B543FB75F791 /* SiriEngineMonitor.swift in Sources */,
 				7734C411F4647D03E44D2B2A /* SiriEventLog.swift in Sources */,
 				8555C57417C7AC21716E989E /* SiriProcessingState.swift in Sources */,

@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - SiriTrace Detail View (Popover)
 
 /// Main popover displayed when clicking the menu-bar status item.
+/// Designed for non-technical users with privacy-oriented traffic-light metaphor.
 struct SiriTraceDetailView: View {
     var monitor: SiriEngineMonitor
     @State private var showSettings = false
@@ -10,8 +11,11 @@ struct SiriTraceDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
+            if let note = monitor.lastExportNotification {
+                notificationBanner(note)
+            }
             Divider()
-            statusSection
+            privacyStatusSection
             Divider()
             lastRequestSection
             Divider()
@@ -19,7 +23,7 @@ struct SiriTraceDetailView: View {
             Divider()
             footerSection
         }
-        .frame(width: 400)
+        .frame(width: 410)
         .sheet(isPresented: $showSettings) {
             SettingsView(monitor: monitor)
         }
@@ -45,31 +49,71 @@ struct SiriTraceDetailView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - Real-Time Status
+    // MARK: - Notification Banner
 
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ESTADO EN TIEMPO REAL")
+    private func notificationBanner(_ message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text(message)
+                .font(.caption2)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                monitor.clearExportNotification()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.green.opacity(0.12))
+    }
+
+    // MARK: - Privacy Status (main section)
+
+    private var privacyStatusSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("¿Dónde se procesa tu solicitud?")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
+            // Main status card
+            HStack(spacing: 12) {
                 statusIndicator
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(monitor.currentStatus.detailLabel)
-                        .font(.body.weight(.medium))
-                    Text(monitor.currentStatus.detailDescription)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(monitor.currentStatus.friendlyLabel)
+                        .font(.body.weight(.semibold))
+
+                    Text(monitor.currentStatus.friendlyDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(monitor.currentStatus.color.opacity(0.08))
+            )
 
+            // Privacy badge
+            if !monitor.currentStatus.privacyBadge.isEmpty {
+                Text(monitor.currentStatus.privacyBadge)
+                    .font(.caption.weight(.medium))
+            }
+
+            // Technical details (small tertiary text)
             Group {
                 Label(monitor.chipInfo, systemImage: "cpu.fill")
                 Label(monitor.networkInfo, systemImage: "network")
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -79,10 +123,10 @@ struct SiriTraceDetailView: View {
         ZStack {
             Circle()
                 .fill(monitor.currentStatus.color.opacity(0.2))
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
 
             Image(systemName: monitor.currentStatus.iconName)
-                .font(.title3)
+                .font(.title2)
                 .foregroundStyle(monitor.currentStatus.color)
                 .symbolEffect(.pulse, isActive: monitor.currentStatus != .idle)
         }
@@ -92,18 +136,26 @@ struct SiriTraceDetailView: View {
 
     private var lastRequestSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("ÚLTIMA SOLICITUD")
+            Text("Última solicitud")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Text("\u{201C}\(monitor.lastPrompt)\u{201D}")
+            Text(monitor.lastPrompt)
                 .font(.callout)
                 .lineLimit(2)
+                .foregroundStyle(
+                    monitor.lastPrompt == "Esperando orden…"
+                        ? .secondary
+                        : .primary
+                )
 
             if let ms = monitor.lastResponseTimeMs {
-                Label("Tiempo de respuesta: \(ms) ms", systemImage: "timer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Label(
+                    "Tiempo: \(ms.humanReadableTime)",
+                    systemImage: "timer"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal)
@@ -114,9 +166,15 @@ struct SiriTraceDetailView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("HISTORIAL RECIENTE")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Actividad reciente")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(monitor.history.count) eventos")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
 
             let recent = monitor.recentHistory(minutes: 5)
 
@@ -127,13 +185,13 @@ struct SiriTraceDetailView: View {
                     .padding(.vertical, 4)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
+                    LazyVStack(alignment: .leading, spacing: 3) {
                         ForEach(recent.prefix(20)) { entry in
                             historyRow(entry)
                         }
                     }
                 }
-                .frame(maxHeight: 150)
+                .frame(maxHeight: 140)
             }
         }
         .padding(.horizontal)
@@ -143,36 +201,47 @@ struct SiriTraceDetailView: View {
     private func historyRow(_ entry: SiriEventLog) -> some View {
         HStack(spacing: 6) {
             Text(entry.state.emoji)
-                .font(.caption)
+                .font(.caption2)
 
             Text(entry.timestamp, style: .time)
-                .font(.caption.monospacedDigit())
+                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
 
-            Text("\u{201C}\(entry.querySnippet)\u{201D}")
-                .font(.caption)
+            Text(entry.querySnippet)
+                .font(.caption2)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
             Spacer()
 
-            Text("→ \(entry.state.shortLabel)")
-                .font(.caption.weight(.medium))
+            Text(entry.state.shortLabel)
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(entry.state.color)
         }
+        .help("\(entry.state.friendlyDescription)\nSubsistema: \(entry.subsystem)")
     }
 
     // MARK: - Footer
 
     private var footerSection: some View {
-        HStack {
-            Button {
-                LogExporter.presentSavePanel(entries: monitor.history)
+        HStack(spacing: 12) {
+            Menu {
+                Button {
+                    monitor.exportToDownloads()
+                } label: {
+                    Label("Guardar en Descargas y abrir Finder", systemImage: "arrow.down.circle.fill")
+                }
+
+                Button {
+                    monitor.exportViaSavePanel()
+                } label: {
+                    Label("Elegir ubicación (Guardar como...)", systemImage: "folder.fill")
+                }
             } label: {
                 Label("Exportar Log", systemImage: "square.and.arrow.up")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.blue)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
 
             Spacer()
 
@@ -180,10 +249,10 @@ struct SiriTraceDetailView: View {
                 monitor.toggleHUD()
             } label: {
                 Label(
-                    monitor.isHUDVisible ? "Ocultar HUD" : "Mostrar HUD",
+                    monitor.isHUDVisible ? "Ocultar Isla" : "Mostrar Isla",
                     systemImage: monitor.isHUDVisible
-                        ? "rectangle.on.rectangle.slash"
-                        : "rectangle.on.rectangle"
+                        ? "macwindow.badge.plus"
+                        : "macwindow"
                 )
             }
             .buttonStyle(.plain)

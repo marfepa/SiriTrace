@@ -3,60 +3,98 @@ import SwiftUI
 // MARK: - Siri Processing State
 
 /// Represents the current routing destination of a Siri / Apple Intelligence request.
+/// Uses a privacy-oriented traffic-light metaphor for non-technical users.
 enum SiriProcessingState: String, Sendable, CaseIterable {
     case idle
     case local
     case privateCloud
     case externalAI
 
-    // MARK: Visual Properties
+    // MARK: Icons
 
     var iconName: String {
         switch self {
-        case .idle:         "cpu"
+        case .idle:         "moon.zzz.fill"
         case .local:        "lock.shield.fill"
         case .privateCloud: "cloud.fill"
-        case .externalAI:   "arrow.up.forward.app.fill"
+        case .externalAI:   "exclamationmark.shield.fill"
         }
     }
+
+    // MARK: Colors (privacy-oriented traffic light)
 
     var color: Color {
         switch self {
         case .idle:         .gray
         case .local:        .green
-        case .privateCloud: .blue
-        case .externalAI:   .orange
+        case .privateCloud: .yellow
+        case .externalAI:   .red
         }
     }
+
+    // MARK: Short Labels (for menu bar and history)
 
     var shortLabel: String {
         switch self {
-        case .idle:         "Siri"
-        case .local:        "Local"
-        case .privateCloud: "PCC"
-        case .externalAI:   "Ext-AI"
+        case .idle:         "Espera"
+        case .local:        "Privado"
+        case .privateCloud: "Nube / Web"
+        case .externalAI:   "Externo"
         }
     }
 
-    var detailLabel: String {
+    // MARK: HUD Labels (compact for Dynamic Island)
+
+    var hudTitle: String {
         switch self {
-        case .idle:         "En reposo"
-        case .local:        "Procesamiento 100 % Local"
-        case .privateCloud: "Private Cloud Compute"
-        case .externalAI:   "Modelo Externo (IA de terceros)"
+        case .idle:         "Siri listo"
+        case .local:        "En tu Mac"
+        case .privateCloud: "Nube Apple"
+        case .externalAI:   "IA Externa"
         }
     }
 
-    var detailDescription: String {
+    var hudBadge: String? {
+        switch self {
+        case .idle:         nil
+        case .local:        "ANE"
+        case .privateCloud: "PCC"
+        case .externalAI:   "ChatGPT"
+        }
+    }
+
+    // MARK: Friendly Labels (main UI, non-technical)
+
+    var friendlyLabel: String {
+        switch self {
+        case .idle:         "Siri en espera"
+        case .local:        "Privado — todo en tu Mac"
+        case .privateCloud: "Nube de Apple y Búsqueda Web"
+        case .externalAI:   "Servicio externo (p.ej. ChatGPT)"
+        }
+    }
+
+    var friendlyDescription: String {
         switch self {
         case .idle:
-            "Siri no está procesando ninguna solicitud."
+            "Siri no está procesando nada ahora mismo."
         case .local:
-            "La solicitud se procesa en el Neural Engine del dispositivo. Ningún dato sale del equipo."
+            "Tu solicitud se procesa aquí, en tu Mac. Ningún dato sale de tu dispositivo."
         case .privateCloud:
-            "La solicitud se envía a los servidores de Apple Private Cloud Compute con cifrado de extremo a extremo."
+            "Siri ha consultado internet o los servidores de Apple para responder a tu solicitud."
         case .externalAI:
-            "La solicitud se reenvía a un proveedor externo de IA (p. ej., ChatGPT)."
+            "Tu solicitud se ha reenviado a un servicio externo. Revisa la privacidad del proveedor."
+        }
+    }
+
+    // MARK: Privacy Badge (traffic light)
+
+    var privacyBadge: String {
+        switch self {
+        case .idle:         ""
+        case .local:        "🟢 Privacidad alta"
+        case .privateCloud: "🟡 Nube / Búsqueda web"
+        case .externalAI:   "🔴 Revisar privacidad"
         }
     }
 
@@ -65,8 +103,8 @@ enum SiriProcessingState: String, Sendable, CaseIterable {
         switch self {
         case .idle:         "⚪"
         case .local:        "🟢"
-        case .privateCloud: "☁️"
-        case .externalAI:   "🟧"
+        case .privateCloud: "🟡"
+        case .externalAI:   "🔴"
         }
     }
 }
